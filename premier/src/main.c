@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -31,7 +32,7 @@ int V(int numsem) {
 }
 
 int estPremier(int num) {
-	for (int i = 2; i < num; ++i) {
+	for (int i = 2; i < sqrt(num); ++i) {
 		if (num % i == 0)
 			return 0;
 	}
