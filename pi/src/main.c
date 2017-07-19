@@ -28,6 +28,10 @@ double erreur(int n){
 	return fabs((p - pi(n)));
 }
 
+double compute_pi(int n, int m) {
+	
+}
+
 int main(int argc, char* argv[]){
 	if (argc != 3) {
 		printf("Usage: %s nb_iterations nb_process\n", argv[0]);
@@ -56,7 +60,7 @@ int main(int argc, char* argv[]){
 		if (p == 0) {
 			//fils
 			double pi = 0;
-			for (int j = i; j <= n; j = j + m) {
+			for (int j = i; j <= n; j +=  m) {
 				pi += f((j - 0.5) / n);
 			}
 			pi = pi / n;
