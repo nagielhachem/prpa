@@ -42,7 +42,8 @@ int estPremier(int num) {
 void fils(int num){
 	int debut, fin;
 	int size = max - min + 1;
-
+	printf("fils: %d\n", num);
+	
 	while (1) {
 		//le fils choisit l'interval:
 		P(0);
@@ -64,6 +65,8 @@ void fils(int num){
 		//fin section critique:
 		V(0);
 
+		printf("mem: [%d, %d[\n", debut, fin);
+		printf("num: [%d, %d[\n", debut + min, fin + min);
 		//le fils cherche les nombres premiers:
 		for (int i = debut; i < fin; ++i) {
 			if (estPremier(i + min)) {
@@ -91,12 +94,15 @@ int main(int argc, char* argv[]){
 
 	//nombre d'entiers dans le segment:
 	n = 1 + (max - min + 1) + proc;
-	printf("n: %d\n", n);
 
 	//creation du segment et attachement:
 	memid = shmget(IPC_PRIVATE, n * sizeof (int), IPC_CREAT | 0666);
+	if (memid == -1) {
+		perror("shmget");
+		exit(1);
+	}
 	ptr_seg = shmat(memid, 0, 0);
-
+	
 	//initialisation des variables a 0:
 	for (int i = 0; i < n; ++i)
 		ptr_seg[i] = 0;
