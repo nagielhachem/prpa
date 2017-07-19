@@ -41,7 +41,7 @@ int estPremier(int num) {
 
 void fils(int num){
 	int debut, fin;
-	int size = max - min;
+	int size = max - min + 1;
 
 	while (1) {
 		//le fils choisit l'interval:
@@ -53,20 +53,20 @@ void fils(int num){
 		}
 		//initialisation de debut et fin.
 		debut = *ptr_seg;
-		if ((*ptr_seg + T - 1) <= max - min) {
+		if ((debut + T) < size) {
 			*ptr_seg = debut + T; //T est inferieur a l'interval restant.
 			fin = debut + T;
 		}
 		else {
-			*ptr_seg = max - min; //T est superieur a l'interval restant.
-			fin = max - min;
+			*ptr_seg = size; //T est superieur a l'interval restant.
+			fin = size;
 		}
 		//fin section critique:
 		V(0);
 
 		//le fils cherche les nombres premiers:
 		for (int i = debut; i < fin; ++i) {
-			if (estPremier(i + min) == 1) {
+			if (estPremier(i + min)) {
 				premier[i] = 1;
 				++occurance[num];
 			}
@@ -90,7 +90,8 @@ int main(int argc, char* argv[]){
 	proc = atoi(argv[4]);
 
 	//nombre d'entiers dans le segment:
-	n = 1 + (max - min) + proc;
+	n = 1 + (max - min + 1) + proc;
+	printf("n: %d\n", n);
 
 	//creation du segment et attachement:
 	memid = shmget(IPC_PRIVATE, n * sizeof (int), IPC_CREAT | 0666);
@@ -102,7 +103,7 @@ int main(int argc, char* argv[]){
 
 	//initialisation des pointeurs
 	premier = ptr_seg + 1;
-	occurance = premier + (max - min);
+	occurance = premier + (max - min + 1);
 
 	//creation de la semaphore:
 	semid = semget(IPC_PRIVATE, 1, IPC_CREAT|0666);
@@ -126,7 +127,7 @@ int main(int argc, char* argv[]){
 
 	//pere affiche:
 	printf("nombres premiers: \n");
-	for (int i = 0; i < max - min; ++i) {
+	for (int i = 0; i < max - min + 1; ++i) {
  		if (premier[i] == 1)
 			printf("%d ", min + i);
 	}
