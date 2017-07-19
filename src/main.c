@@ -30,8 +30,8 @@ double erreur(int n){
 
 int main(int argc, char* argv[]){
 	if (argc != 3) {
-		perror("Please enter 2 arguments.\n");
-		return 1;
+		printf("Usage: %s nb_iterations nb_process\n", argv[0]);
+		return 9;
 	}
 	int n, m;
 	n = atoi(argv[1]);
@@ -83,9 +83,9 @@ int main(int argc, char* argv[]){
 		valeur += res.surface;
 	}
 	printf("resulta: pi = %lg\n", valeur);
-	double err = fabs((4*atan(1.0) - valeur));
-	printf("n= %d m= %d erreur: %lg\n", n, m, err);
-	printf("n= %d erreur: %lg\n", n, erreur(n));
+	double err = fabs((4 * atan(1.0) - valeur));
+	printf("n = %d m = %d erreur: %lg\n", n, m, err);
+	printf("n = %d erreur: %lg\n", n, erreur(n));
 
 }
 
