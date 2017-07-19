@@ -7,13 +7,14 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 
-int min, max, T, proc;
+unsigned long long min, max;
+int T, proc;
 int memid, semid;
 
 //segment partage
-int *ptr_seg;
-int *occurance;
-int *premier;
+int *ptr_seg = NULL;
+int *occurance = NULL;
+int *premier = NULL;
 
 int P(int numsem) {
 	struct sembuf op;
@@ -31,8 +32,9 @@ int V(int numsem) {
 	return semop(semid, &op, 1);
 }
 
-int estPremier(int num) {
-	for (int i = 2; i < sqrt(num); ++i) {
+int estPremier(unsigned long long num) {
+	unsigned long long i;
+	for (i = 2; i < sqrt(num); ++i) {
 		if (num % i == 0)
 			return 0;
 	}
@@ -82,15 +84,14 @@ int main(int argc, char* argv[]){
 		exit(1);
 	}
 
-	int n;
 	pid_t pid;
-	min = atoi(argv[1]);
-	max = atoi(argv[2]);
+	min = strtoul(argv[1], NULL, 10);
+	max = strtoul(argv[2], NULL, 10);
 	T = atoi(argv[3]);
 	proc = atoi(argv[4]);
 
 	//nombre d'entiers dans le segment:
-	n = 1 + (max - min + 1) + proc;
+	int n = 1 + (max - min + 1) + proc;
 
 	//creation du segment et attachement:
 	memid = shmget(IPC_PRIVATE, n * sizeof (int), IPC_CREAT | 0666);
@@ -130,9 +131,10 @@ int main(int argc, char* argv[]){
 
 	//pere affiche:
 	printf("nombres premiers: \n");
-	for (int i = 0; i < max - min + 1; ++i) {
+	int size = max - min + 1;
+	for (int i = 0; i < size; ++i) {
  		if (premier[i] == 1)
-			printf("%d ", min + i);
+			printf("%llu ", min + i);
 	}
 
 	printf("\nNombre d'occurance: \n");
