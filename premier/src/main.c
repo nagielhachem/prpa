@@ -42,7 +42,6 @@ int estPremier(int num) {
 void fils(int num){
 	int debut, fin;
 	int size = max - min + 1;
-	printf("fils: %d\n", num);
 	
 	while (1) {
 		//le fils choisit l'interval:
@@ -65,8 +64,6 @@ void fils(int num){
 		//fin section critique:
 		V(0);
 
-		printf("mem: [%d, %d[\n", debut, fin);
-		printf("num: [%d, %d[\n", debut + min, fin + min);
 		//le fils cherche les nombres premiers:
 		for (int i = debut; i < fin; ++i) {
 			if (estPremier(i + min)) {
@@ -144,7 +141,7 @@ int main(int argc, char* argv[]){
 	}
 
 	//detachement:
-	shmdt(ptr_seg);
+	shmctl(memid, IPC_RMID, NULL);
 	semctl(semid, 0, IPC_RMID, 0);
 
 }
