@@ -7,7 +7,7 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 
-int Max, T, proc;
+int min, max, T, proc;
 int memid, semid;
 
 //segment partage
@@ -41,31 +41,32 @@ int estPremier(int num) {
 
 void fils(int num){
 	int debut, fin;
+	int size = max - min;
 
 	while (1) {
 		//le fils choisit l'interval:
 		P(0);
 		//section critique:
-		if (*ptr_seg >= Max) {
+		if (*ptr_seg >= size) {
 			V(0);
 			exit(0); //travail fini.
 		}
 		//initialisation de debut et fin.
 		debut = *ptr_seg;
-		if ((*ptr_seg + T - 1) <= Max) {
-			*ptr_seg = *ptr_seg + T; //T est inferieur a l'interval restant.
+		if ((*ptr_seg + T - 1) <= max - min) {
+			*ptr_seg = debut + T; //T est inferieur a l'interval restant.
 			fin = debut + T;
 		}
 		else {
-			*ptr_seg = Max; //T est superieur a l'interval restant.
-			fin = Max;
+			*ptr_seg = max - min; //T est superieur a l'interval restant.
+			fin = max - min;
 		}
 		//fin section critique:
 		V(0);
 
 		//le fils cherche les nombres premiers:
 		for (int i = debut; i < fin; ++i) {
-			if (estPremier(i) == 1) {
+			if (estPremier(i + min) == 1) {
 				premier[i] = 1;
 				++occurance[num];
 			}
@@ -76,32 +77,32 @@ void fils(int num){
 
 
 int main(int argc, char* argv[]){
-	if (argc != 4) {
-		printf("Usage: %s max T nb_process.\n", argv[0]);
+	if (argc != 5) {
+		printf("Usage: %s min max T nb_process.\n", argv[0]);
 		exit(1);
 	}
 
 	int n;
 	pid_t pid;
-	Max = atoi(argv[1]);
-	T = atoi(argv[2]);
-	proc = atoi(argv[3]);
+	min = atoi(argv[1]);
+	max = atoi(argv[2]);
+	T = atoi(argv[3]);
+	proc = atoi(argv[4]);
 
 	//nombre d'entiers dans le segment:
-	n = 1 + Max + proc;
+	n = 1 + (max - min) + proc;
 
 	//creation du segment et attachement:
 	memid = shmget(IPC_PRIVATE, n * sizeof (int), IPC_CREAT | 0666);
 	ptr_seg = shmat(memid, 0, 0);
 
 	//initialisation des variables a 0:
-	ptr_seg[0] = 1;
-	for (int i = 1; i < n; ++i)
-		ptr_seg[i]=0;
+	for (int i = 0; i < n; ++i)
+		ptr_seg[i] = 0;
 
 	//initialisation des pointeurs
 	premier = ptr_seg + 1;
-	occurance = premier + Max;
+	occurance = premier + (max - min);
 
 	//creation de la semaphore:
 	semid = semget(IPC_PRIVATE, 1, IPC_CREAT|0666);
@@ -125,9 +126,9 @@ int main(int argc, char* argv[]){
 
 	//pere affiche:
 	printf("nombres premiers: \n");
-	for (int i = 0; i < Max; ++i) {
-		if (premier[i] == 1)
-			printf("%d ", i);
+	for (int i = 0; i < max - min; ++i) {
+ 		if (premier[i] == 1)
+			printf("%d ", min + i);
 	}
 
 	printf("\nNombre d'occurance: \n");
@@ -137,7 +138,7 @@ int main(int argc, char* argv[]){
 
 	//detachement:
 	shmdt(ptr_seg);
-	semctl(semid,0,IPC_RMID,0);
+	semctl(semid, 0, IPC_RMID, 0);
 
 }
 
