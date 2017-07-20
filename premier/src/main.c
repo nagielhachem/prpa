@@ -7,7 +7,6 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 
-
 #define SHMMAX_SYS_FILE "/proc/sys/kernel/shmmax"
 #define DEFAULT_SHMMAX 100000
 
@@ -19,21 +18,20 @@ int *ptr_seg = NULL;
 int *occurance = NULL;
 int *premier = NULL;
 
-
 unsigned int getSHMMAX(){
-    unsigned int shmmax;
-    FILE *f = fopen(SHMMAX_SYS_FILE, "r");
-    
-    if (!f)
-        return DEFAULT_SHMMAX;
-    
-    if (fscanf(f, "%u", &shmmax) != 1) {
-        fclose(f);
-        return DEFAULT_SHMMAX;
-    }
-    
-    fclose(f);
-    return shmmax;
+	unsigned int shmmax;
+	FILE *f = fopen(SHMMAX_SYS_FILE, "r");
+
+	if (!f)
+		return DEFAULT_SHMMAX;
+
+	if (fscanf(f, "%u", &shmmax) != 1) {
+		fclose(f);
+		return DEFAULT_SHMMAX;
+	}
+
+	fclose(f);
+	return shmmax;
 }
 
 int P(int numsem, int semid) {
@@ -64,7 +62,7 @@ int estPremier(unsigned long long num) {
 void fils(int num, int semid){
 	int debut, fin;
 	int size = max - min + 1;
-	
+
 	while (1) {
 		//le fils choisit l'interval:
 		P(0, semid);
@@ -97,21 +95,20 @@ void fils(int num, int semid){
 }
 
 void affichePremier(int* premier){
-    printf("nombres premiers: \n");
-    int size = max - min + 1;
-    for (int i = 0; i < size; ++i) {
-        if (premier[i] == 1)
-            printf("%llu ", min + i);
-    }
+	printf("nombres premiers: \n");
+	int size = max - min + 1;
+	for (int i = 0; i < size; ++i) {
+		if (premier[i] == 1)
+			printf("%llu ", min + i);
+	}
 }
 
 void afficheOccurance(int* occurance){
-    printf("\nNombre d'occurance: \n");
-    for (int i = 0; i < proc; ++i) {
-        printf("%d: %d\n", i, occurance[i]);
-    }
+	printf("\nNombre d'occurance: \n");
+	for (int i = 0; i < proc; ++i) {
+		printf("%d: %d\n", i, occurance[i]);
+	}
 }
-
 
 void computePremier(){
     pid_t pid;
@@ -139,8 +136,6 @@ void computePremier(){
     semctl(semid, 0, IPC_RMID, 0);
 }
 
-
-
 int main(int argc, char* argv[]){
 	if (argc != 5) {
 		printf("Usage: %s min max T nb_process.\n", argv[0]);
@@ -151,45 +146,37 @@ int main(int argc, char* argv[]){
 	max = strtoul(argv[2], NULL, 10);
 	T = atoi(argv[3]);
 	proc = atoi(argv[4]);
-    int memid;
+	int memid;
 
 	//nombre d'entiers dans le segment:
 	int n = 1 + (max - min + 1) + proc;
 
 	//creation du segment et attachement:
-    unsigned int shmmax = getSHMMAX();
-    printf("n: %lu\n", n * sizeof(int));
-    if (n * sizeof(int) > shmmax)
-        memid = shmget(IPC_PRIVATE, shmmax, IPC_CREAT | 0666);
-    else
-        memid = shmget(IPC_PRIVATE, n * sizeof(int), IPC_CREAT | 0666);
-	
+	unsigned int shmmax = getSHMMAX();
+	printf("n: %lu\n", n * sizeof(int));
+	if (n * sizeof(int) > shmmax)
+		memid = shmget(IPC_PRIVATE, shmmax, IPC_CREAT | 0666);
+	else
+		memid = shmget(IPC_PRIVATE, n * sizeof(int), IPC_CREAT | 0666);
+
 	if (memid == -1) {
 		perror("shmget");
 		exit(1);
 	}
 	ptr_seg = shmat(memid, 0, 0);
-    //initialisation des pointeurs
-    premier = ptr_seg + 1;
-    occurance = premier + (max - min + 1);
-    
-    printf("%lu\n", n * sizeof(int) / shmmax + 1);
-    //for (int i = 0; i < n * sizeof(int) / shmmax + 1; i++){
-        
-    //}
+	//initialisation des pointeurs
+	premier = ptr_seg + 1;
+	occurance = premier + (max - min + 1);
+
+	printf("%lu\n", n * sizeof(int) / shmmax + 1);
+	
 	//initialisation des variables a 0:
 	for (int i = 0; i < n; ++i)
 		ptr_seg[i] = 0;
 
-	
-
-    computePremier();
-
-    affichePremier(premier);
-    
-    
-    afficheOccurance(occurance);
-	
+	computePremier();
+	affichePremier(premier);
+	afficheOccurance(occurance);
 
 	//detachement:
 	shmctl(memid, IPC_RMID, NULL);
