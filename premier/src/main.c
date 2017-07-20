@@ -51,8 +51,7 @@ int V(int numsem, int semid) {
 }
 
 int estPremier(unsigned long long num) {
-	unsigned long long i;
-	for (i = 2; i < sqrt(num); ++i) {
+	for (unsigned long long i = 2; i < sqrt(num); ++i) {
 		if (num % i == 0)
 			return 0;
 	}
@@ -113,39 +112,40 @@ void afficheOccurance(int* occurance){
 void computePremier(){
     pid_t pid;
     
-    //creation de la semaphore:
+		//creation de la semaphore:
     int semid = semget(IPC_PRIVATE, 1, IPC_CREAT|0666);
     if (semid == -1) {
         perror("semget");
         exit(1);
     }
-    
     //initialisation de la semaphore:
     semctl(semid, 0, SETVAL, 1);
-    
     //creation de proc processus:
     for (int i = 0; i < proc; ++i) {
         pid = fork();
         if (pid == 0) //fils travaille:
             fils(i, semid);
     }
-    
     //pere attend tous ses fils:	
     while (wait(NULL) != -1);
-    
     semctl(semid, 0, IPC_RMID, 0);
 }
 
-int main(int argc, char* argv[]){
+void parseCmd(int argc, char** argv) {
 	if (argc != 5) {
 		printf("Usage: %s min max T nb_process.\n", argv[0]);
 		exit(1);
 	}
-
+	
 	min = strtoul(argv[1], NULL, 10);
 	max = strtoul(argv[2], NULL, 10);
 	T = atoi(argv[3]);
 	proc = atoi(argv[4]);
+}
+
+int main(int argc, char** argv){
+
+	parseCmd(argc, argv);
 	int memid;
 
 	//nombre d'entiers dans le segment:
