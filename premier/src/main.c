@@ -9,7 +9,7 @@
 
 
 #define SHMMAX_SYS_FILE "/proc/sys/kernel/shmmax"
-#define DEFAULT_SHMMAX 30000
+#define DEFAULT_SHMMAX 100000
 
 unsigned long long min, max;
 int T, proc;
@@ -113,7 +113,7 @@ void afficheOccurance(int* occurance){
 }
 
 
-void computePremier(int* premier, int* occurance){
+void computePremier(){
     pid_t pid;
     
     //creation de la semaphore:
@@ -183,7 +183,7 @@ int main(int argc, char* argv[]){
 
 	
 
-    computePremier(premier, occurance);
+    computePremier();
 
     affichePremier(premier);
     
