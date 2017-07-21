@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -12,6 +13,16 @@
 #define DEFAULT_SHMMAX 2000000
 
 int T, proc;
+
+typedef struct {
+	int thread_id;
+	int offset;
+	int T;
+	unsigned long long min;
+	int *ptr_seg;
+	int *premier;
+	int *occurance;
+} segment;
 
 unsigned int getSHMMAX(){
 	unsigned int shmmax;
@@ -64,18 +75,18 @@ void fils(int num, int semid,	unsigned long long min, unsigned long long max,
 		//le fils choisit l'interval:
 		P(0, semid);
 		//section critique:
-		if (*ptr_seg >= size) {
+		if (ptr_seg [0]>= size) {
 			V(0, semid);
-			exit(0); //travail fini.
+			pthread_exit((void*) 0); //travail fini.
 		}
 		//initialisation de debut et fin.
-		debut = *ptr_seg;
+		debut = ptr_seg[0];
 		if ((debut + T) < size) {
-			*ptr_seg = debut + T; //T est inferieur a l'interval restant.
+			ptr_seg[0] = debut + T; //T est inferieur a l'interval restant.
 			fin = debut + T;
 		}
 		else {
-			*ptr_seg = size; //T est superieur a l'interval restant.
+			ptr_seg[0] = size; //T est superieur a l'interval restant.
 			fin = size;
 		}
 		//fin section critique:
@@ -85,10 +96,25 @@ void fils(int num, int semid,	unsigned long long min, unsigned long long max,
 		for (int i = debut; i < fin; ++i) {
 			if (estPremier(i + min)) {
 				premier[i] = 1;
-				++occurance[num];
+				occurance[num]++;
 			}
 		}
 	}
+}
+
+void* thread_job(void *arg){
+
+	segment *seg = (segment *) arg;
+	printf("thread %d, T: %d\n", seg->thread_id, seg->T);
+	//le fils cherche les nombres premiers:
+	for (int i = 0; i < seg->T; ++i) {
+		if (estPremier(i + seg->min + seg->offset)) {
+			seg->premier[i + seg->offset] = 1;
+			seg->occurance[seg->thread_id]++;
+		}
+	}
+	free(seg);
+	return NULL;
 }
 
 void affichePremier(int* premier, unsigned long long min, unsigned long long max){
@@ -137,15 +163,50 @@ void computePremier(unsigned long long min, unsigned long long max,
 	//initialisation de la semaphore:
 	semctl(semid, 0, SETVAL, 1);
 
+	pthread_t pthread_id[proc];
+
+	int size = max - min + 1;
+	int offset = 0;
+	int mod = size % proc;
 	//creation de proc processus:
-	for (int i = 0; i < proc; ++i) {
-		pid_t pid = fork();
-		if (pid == 0) //fils travaille:
-			fils(i, semid, min, max, ptr_seg, premier, occurance);
+	for (int i = 0; i < proc - 1; ++i) {
+		segment *seg = malloc(sizeof (segment));
+		seg->min = min;
+		seg->ptr_seg = ptr_seg;
+		seg->premier = premier;
+		seg->occurance = occurance;
+		seg->thread_id = i;
+		seg->offset = offset;
+		seg->T = size / proc + (mod-- <= 0 ? 0 : 1);
+		offset += seg->T;
+		pthread_create(&pthread_id[i], NULL, thread_job, (void*) seg);
 	}
 
+	segment *seg = malloc(sizeof (segment));
+	seg->min = min;
+	seg->ptr_seg = ptr_seg;
+	seg->premier = premier;
+	seg->occurance = occurance;
+	seg->thread_id = proc - 1;
+	seg->offset = offset;
+	seg->T = size / proc;
+	if (proc == 1)
+		seg->T = max - min;
+	pthread_create(&pthread_id[proc - 1], NULL, thread_job, (void*) seg);
+
+	for (int i = 0; i < proc; ++i) {
+		pthread_join(pthread_id[i], NULL);
+	}
+
+//	//creation de proc processus:
+//	for (int i = 0; i < proc; ++i) {
+//		pid_t pid = fork();
+//		if (pid == 0) //fils travaille:
+//			fils(i, semid, min, max, ptr_seg, premier, occurance);
+//	}
+
 	//pere attend tous ses fils:	
-	while (wait(NULL) != -1);
+//	while (wait(NULL) != -1);
 
 	affichePremier(premier, min, max);
 	afficheOccurance(occurance);
@@ -153,26 +214,26 @@ void computePremier(unsigned long long min, unsigned long long max,
 	//detachement:
 	semctl(semid, 0, IPC_RMID, 0);
 	shmctl(memid, IPC_RMID, NULL);
+	exit(0);
 }
 
 void parseCmd(int argc, char **argv,
-		unsigned long long *min, unsigned long long *max, int *T, int *proc) {
+		unsigned long long *min, unsigned long long *max, int *proc) {
 
-	if (argc != 5) {
-		printf("Usage: %s min max T nb_process.\n", argv[0]);
+	if (argc != 4) {
+		printf("Usage: %s min max nb_threads.\n", argv[0]);
 		exit(1);
 	}
 
 	*min = strtoul(argv[1], NULL, 10);
 	*max = strtoul(argv[2], NULL, 10);
-	*T = atoi(argv[3]);
-	*proc = atoi(argv[4]);
+	*proc = atoi(argv[3]);
 }
 
 int main(int argc, char* argv[]){
 	
 	unsigned long long min, max;
-	parseCmd(argc, argv, &min, &max, &T, &proc);
+	parseCmd(argc, argv, &min, &max, &proc);
 
 	//nombre d'entiers dans le segment:
 	int size = max - min + 1;
@@ -187,11 +248,15 @@ int main(int argc, char* argv[]){
 	int nbInts = sizeSegment - 1 - proc;
 	int nbSegments = n / sizeSegment + (sizeSegment == n ? 0 : 1);
 	
-	for (int i = 0; i < nbSegments - 1; i++)
-		computePremier(min + i * nbInts, min + (i + 1) * nbInts,
-				sizeSegment, nbInts);
-
-	computePremier(min + (nbSegments - 1) * nbInts, max, sizeSegment, nbInts);
-
+	for (int i = 0; i < nbSegments - 1; i++) {
+		pid_t pid = fork();
+		if (pid == 0)
+			computePremier(min + i * nbInts, min + (i + 1) * nbInts,
+					sizeSegment, nbInts);
+	}
+	if (fork() == 0)
+		computePremier(min + (nbSegments - 1) * nbInts, max, sizeSegment, nbInts);
+	//pere attend tous ses fils:	
+	while (wait(NULL) != -1);
 }
 
