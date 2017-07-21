@@ -53,7 +53,7 @@ int V(int numsem, int semid) {
 
 int estPremier(unsigned long long num) {
 	unsigned long long i;
-	for (i = 2; i < sqrt(num); ++i) {
+	for (i = 2; i <= sqrt(num); ++i) {
 		if (num % i == 0)
 			return 0;
 	}
@@ -183,14 +183,14 @@ int main(int argc, char* argv[]){
 
 	ptr_seg = shmat(memid, 0, 0);
 	//initialisation des pointeurs
-	premier = ptr_seg + 1;
-	occurance = premier + size;
 
 
 //	int nbSegments = n * sizeof(int) / shmmax + 1;
 	int nbInts = sizeSegment - 1 - proc;
-	int nbSegments = size / nbInts + 1;
+	int nbSegments = n / sizeSegment + (sizeSegment == n ? 0 : 1);
 	printf("nbSegments: %d, nbInts: %d\n", nbSegments, nbInts);
+	premier = ptr_seg + 1;
+	occurance = premier + nbInts;
 
 	for (int i = 0; i < nbSegments - 1; i++){
 		unsigned long long m1 = min + i * nbInts;
@@ -198,11 +198,11 @@ int main(int argc, char* argv[]){
 		printf("[%llu, %llu[\n", m1, m2);
 		computePremier(m1, m2, sizeSegment);
 		affichePremier(premier, m1, m2);
+		afficheOccurance(occurance);
 	}
 
-	printf("[%llu, %llu[\n", min + (nbSegments - 1) * nbInts, max);
 	computePremier(min + (nbSegments - 1) * nbInts, max, sizeSegment);
-//	affichePremier(premier, min + (nbSegments-1) * nbInts, max);
+	affichePremier(premier, min + (nbSegments-1) * nbInts, max);
 
 	afficheOccurance(occurance);
 	
