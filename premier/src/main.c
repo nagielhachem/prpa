@@ -13,12 +13,6 @@
 
 int T, proc;
 
-//segment partage
-int *ptr_seg = NULL;
-int *occurance = NULL;
-int *premier = NULL;
-
-
 unsigned int getSHMMAX(){
 	unsigned int shmmax;
 	FILE *f = fopen(SHMMAX_SYS_FILE, "r");
@@ -60,7 +54,9 @@ int estPremier(unsigned long long num) {
 	return 1;
 }
 
-void fils(int num, int semid, unsigned long long min, unsigned long long max){
+void fils(int num, int semid,	unsigned long long min, unsigned long long max,
+		int* ptr_seg, int* premier, int* occurance){
+	
 	int debut, fin;
 	int size = max - min + 1;
 
@@ -113,8 +109,23 @@ void afficheOccurance(int* occurance){
 
 
 void computePremier(unsigned long long min, unsigned long long max,
-		int sizeSegment){
-	pid_t pid;
+		int sizeSegment, int nbInts){
+	
+	//creation du segment et attachement:
+	int memid = shmget(IPC_PRIVATE, sizeSegment * sizeof (int), IPC_CREAT | 0666);
+	if (memid == -1) {
+		perror("shmget");
+		exit(1);
+	}
+
+	//initialisation des pointeurs
+	int* ptr_seg = shmat(memid, 0, 0);
+	int* premier = ptr_seg + 1;
+	int* occurance = premier + nbInts;
+
+	//initialisation des variables a 0:
+	for (int i = 0; i < sizeSegment; ++i)
+		ptr_seg[i] = 0;
 
 	//creation de la semaphore:
 	int semid = semget(IPC_PRIVATE, 1, IPC_CREAT|0666);
@@ -126,39 +137,42 @@ void computePremier(unsigned long long min, unsigned long long max,
 	//initialisation de la semaphore:
 	semctl(semid, 0, SETVAL, 1);
 
-	//initialisation des variables a 0:
-	for (int i = 0; i < sizeSegment; ++i)
-		ptr_seg[i] = 0;
-
 	//creation de proc processus:
 	for (int i = 0; i < proc; ++i) {
-		pid = fork();
+		pid_t pid = fork();
 		if (pid == 0) //fils travaille:
-			fils(i, semid, min, max);
+			fils(i, semid, min, max, ptr_seg, premier, occurance);
 	}
 
 	//pere attend tous ses fils:	
 	while (wait(NULL) != -1);
 
+	affichePremier(premier, min, max);
+	afficheOccurance(occurance);
+
+	//detachement:
 	semctl(semid, 0, IPC_RMID, 0);
+	shmctl(memid, IPC_RMID, NULL);
 }
 
+void parseCmd(int argc, char **argv,
+		unsigned long long *min, unsigned long long *max, int *T, int *proc) {
 
-
-int main(int argc, char* argv[]){
 	if (argc != 5) {
 		printf("Usage: %s min max T nb_process.\n", argv[0]);
 		exit(1);
 	}
 
+	*min = strtoul(argv[1], NULL, 10);
+	*max = strtoul(argv[2], NULL, 10);
+	*T = atoi(argv[3]);
+	*proc = atoi(argv[4]);
+}
+
+int main(int argc, char* argv[]){
+	
 	unsigned long long min, max;
-	min = strtoul(argv[1], NULL, 10);
-	printf("min: %llu\n", min);
-	max = strtoul(argv[2], NULL, 10);
-	printf("max: %llu\n", max);
-	T = atoi(argv[3]);
-	proc = atoi(argv[4]);
-	int memid;
+	parseCmd(argc, argv, &min, &max, &T, &proc);
 
 	//nombre d'entiers dans le segment:
 	int size = max - min + 1;
@@ -170,44 +184,14 @@ int main(int argc, char* argv[]){
 	else
 		sizeSegment = n;
 
-	printf("n: %d\n", n);
-	printf("sizeSegment: %d\n", sizeSegment);
-
-	//creation du segment et attachement:
-	memid = shmget(IPC_PRIVATE, sizeSegment * sizeof(int), IPC_CREAT | 0666);
-
-	if (memid == -1) {
-		perror("shmget");
-		exit(1);
-	}
-
-	ptr_seg = shmat(memid, 0, 0);
-	//initialisation des pointeurs
-
-
-//	int nbSegments = n * sizeof(int) / shmmax + 1;
 	int nbInts = sizeSegment - 1 - proc;
 	int nbSegments = n / sizeSegment + (sizeSegment == n ? 0 : 1);
-	printf("nbSegments: %d, nbInts: %d\n", nbSegments, nbInts);
-	premier = ptr_seg + 1;
-	occurance = premier + nbInts;
-
-	for (int i = 0; i < nbSegments - 1; i++){
-		unsigned long long m1 = min + i * nbInts;
-		unsigned long long m2 = min + (i + 1) * nbInts;
-		printf("[%llu, %llu[\n", m1, m2);
-		computePremier(m1, m2, sizeSegment);
-		affichePremier(premier, m1, m2);
-		afficheOccurance(occurance);
-	}
-
-	computePremier(min + (nbSegments - 1) * nbInts, max, sizeSegment);
-	affichePremier(premier, min + (nbSegments-1) * nbInts, max);
-
-	afficheOccurance(occurance);
 	
-	//detachement:
-	shmctl(memid, IPC_RMID, NULL);
+	for (int i = 0; i < nbSegments - 1; i++)
+		computePremier(min + i * nbInts, min + (i + 1) * nbInts,
+				sizeSegment, nbInts);
+
+	computePremier(min + (nbSegments - 1) * nbInts, max, sizeSegment, nbInts);
 
 }
 
