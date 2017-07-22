@@ -10,7 +10,7 @@
 
 
 #define SHMMAX_SYS_FILE "/proc/sys/kernel/shmmax"
-#define DEFAULT_SHMMAX 2000000
+#define DEFAULT_SHMMAX 100000
 
 int T, proc;
 
@@ -105,7 +105,7 @@ void fils(int num, int semid,	unsigned long long min, unsigned long long max,
 void* thread_job(void *arg){
 
 	segment *seg = (segment *) arg;
-	printf("thread %d, T: %d\n", seg->thread_id, seg->T);
+	//printf("thread %d, T: %d\n", seg->thread_id, seg->T);
 	//le fils cherche les nombres premiers:
 	for (int i = 0; i < seg->T; ++i) {
 		if (estPremier(i + seg->min + seg->offset)) {
@@ -136,12 +136,15 @@ void afficheOccurance(int* occurance){
 
 void computePremier(unsigned long long min, unsigned long long max,
 		int sizeSegment, int nbInts){
+    
+    printf("Compute between %llu and %llu\n", min, max);
+    fflush(stdout);
 	
 	//creation du segment et attachement:
 	int memid = shmget(IPC_PRIVATE, sizeSegment * sizeof (int), IPC_CREAT | 0666);
 	if (memid == -1) {
 		perror("shmget");
-		exit(1);
+        return;
 	}
 
 	//initialisation des pointeurs
@@ -157,7 +160,7 @@ void computePremier(unsigned long long min, unsigned long long max,
 	int semid = semget(IPC_PRIVATE, 1, IPC_CREAT|0666);
 	if (semid == -1) {
 		perror("semget");
-		exit(1);
+        return;
 	}
 
 	//initialisation de la semaphore:
@@ -208,13 +211,12 @@ void computePremier(unsigned long long min, unsigned long long max,
 	//pere attend tous ses fils:	
 //	while (wait(NULL) != -1);
 
-	affichePremier(premier, min, max);
-	afficheOccurance(occurance);
+	//affichePremier(premier, min, max);
+	//afficheOccurance(occurance);
 
 	//detachement:
 	semctl(semid, 0, IPC_RMID, 0);
 	shmctl(memid, IPC_RMID, NULL);
-	exit(0);
 }
 
 void parseCmd(int argc, char **argv,
@@ -227,7 +229,7 @@ void parseCmd(int argc, char **argv,
 
 	*min = strtoul(argv[1], NULL, 10);
 	*max = strtoul(argv[2], NULL, 10);
-	*proc = atoi(argv[3]);
+    *proc = atoi(argv[3]);
 }
 
 int main(int argc, char* argv[]){
@@ -247,16 +249,47 @@ int main(int argc, char* argv[]){
 
 	int nbInts = sizeSegment - 1 - proc;
 	int nbSegments = n / sizeSegment + (sizeSegment == n ? 0 : 1);
-	
-	for (int i = 0; i < nbSegments - 1; i++) {
-		pid_t pid = fork();
-		if (pid == 0)
-			computePremier(min + i * nbInts, min + (i + 1) * nbInts,
-					sizeSegment, nbInts);
+    printf("Nb de segments: %d\n", nbSegments);
+    printf("Size segment: %d\n", sizeSegment);
+    fflush(stdout);
+    
+    // définition du début et de la fin des segments de chaque proc
+    unsigned long long* starts = (unsigned long long*) malloc(sizeof(unsigned long long) * 4);
+    unsigned long long* ends = (unsigned long long*) malloc(sizeof(unsigned long long) * 4);
+    starts[0] = min;
+    ends[0] = min + (nbSegments / 4 + (nbSegments % 4 > 0 ? 1 : 0)) * nbInts;
+    for (int i = 1; i < 4; i++){
+        starts[i] = ends[i - 1] + 1;
+        ends[i] = starts[i] + (nbSegments / 4 + (i < nbSegments % 4 ? 1 : 0)) * nbInts;
+    }
+    ends[3] = max;
+
+    
+	for (int i = 0; i < 3; i++) {
+        if (fork() == 0){
+            if (nbSegments <= 4)
+                computePremier(min + i * nbInts, min + (i + 1) * nbInts,
+                           sizeSegment, nbInts);
+            else {
+                for (int j = 0; j < nbSegments / 4; j++)
+                    computePremier(starts[i] + j * nbInts, starts[i] + (j + 1) * nbInts, sizeSegment, nbInts);
+                if (i < nbSegments % 4)
+                    computePremier(starts[i] + nbSegments / 4 * nbInts, ends[i], sizeSegment, nbInts);
+            }
+            exit(0);
+        }
 	}
-	if (fork() == 0)
-		computePremier(min + (nbSegments - 1) * nbInts, max, sizeSegment, nbInts);
-	//pere attend tous ses fils:	
+    if (fork() == 0){
+        if (nbSegments <= 4)
+            computePremier(min + (nbSegments - 1) * nbInts, max, sizeSegment, nbInts);
+        else{
+            for (int j = 0; j < nbSegments / 4 - 1; j++)
+                computePremier(starts[3] + j * nbInts, starts[3] + (j + 1) * nbInts, sizeSegment, nbInts);
+            computePremier(starts[3] + (nbSegments / 4 - 1) * nbInts, ends[3], sizeSegment, nbInts);
+        }
+        exit(0);
+    }
+	//pere attend tous ses fils:
 	while (wait(NULL) != -1);
 }
 
