@@ -185,7 +185,7 @@ int main(int argc, char* argv[]){
 		memid[i] = shmget(IPC_PRIVATE, sizeSegment * sizeof (int), IPC_CREAT | 0666);
 		if (memid[i] == -1) {
 			for (int j = 0; j < i; ++j) 
-				shmctl(memid[i], IPC_RMID, NULL);
+				shmctl(memid[j], IPC_RMID, NULL);
 			perror("shmget");
 			return 1;
 		}
