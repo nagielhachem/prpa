@@ -41,22 +41,6 @@ unsigned int getSHMMAX(){
 	return shmmax;
 }
 
-int P(int numsem, int semid) {
-	struct sembuf op;
-	op.sem_op = -1;
-	op.sem_num = numsem;
-	op.sem_flg = 0;
-	return semop(semid, &op, 1);
-}
-
-int V(int numsem, int semid) {
-	struct sembuf op;
-	op.sem_op = 1;
-	op.sem_num = numsem;
-	op.sem_flg = 0;
-	return semop(semid, &op, 1);
-}
-
 int estPremier(unsigned long long num) {
 	unsigned long long i;
 	for (i = 2; i <= sqrt(num); ++i) {
@@ -64,43 +48,6 @@ int estPremier(unsigned long long num) {
 			return 0;
 	}
 	return 1;
-}
-
-void fils(int num, int semid,	unsigned long long min, unsigned long long max,
-		int* ptr_seg, int* premier, int* occurance){
-
-	int debut, fin;
-	int size = max - min + 1;
-
-	while (1) {
-		//le fils choisit l'interval:
-		P(0, semid);
-		//section critique:
-		if (ptr_seg [0]>= size) {
-			V(0, semid);
-			pthread_exit((void*) 0); //travail fini.
-		}
-		//initialisation de debut et fin.
-		debut = ptr_seg[0];
-		if ((debut + T) < size) {
-			ptr_seg[0] = debut + T; //T est inferieur a l'interval restant.
-			fin = debut + T;
-		}
-		else {
-			ptr_seg[0] = size; //T est superieur a l'interval restant.
-			fin = size;
-		}
-		//fin section critique:
-		V(0, semid);
-
-		//le fils cherche les nombres premiers:
-		for (int i = debut; i < fin; ++i) {
-			if (estPremier(i + min)) {
-				premier[i] = 1;
-				occurance[num]++;
-			}
-		}
-	}
 }
 
 void* thread_job(void *arg){
@@ -133,7 +80,6 @@ void afficheOccurance(int* occurance){
 		printf("%d: %d\n", i, occurance[i]);
 	}
 }
-
 
 void computePremier(unsigned long long min, unsigned long long max,
 		int sizeSegment, int nbInts, int *ptrSeg){
@@ -223,7 +169,6 @@ int main(int argc, char* argv[]){
 	unsigned long long starts[nbProc];
 	unsigned long long ends[nbProc];
 	int memid[nbProc];
-	int semid[nbProc];
 	int *ptrSeg[nbProc];
 
 	starts[0] = min;
@@ -239,25 +184,16 @@ int main(int argc, char* argv[]){
 		//creation du segment et attachement:
 		memid[i] = shmget(IPC_PRIVATE, sizeSegment * sizeof (int), IPC_CREAT | 0666);
 		if (memid[i] == -1) {
+			for (int j = 0; j < i; ++j) 
+				shmctl(memid[i], IPC_RMID, NULL);
 			perror("shmget");
 			return 1;
 		}
 		ptrSeg[i] = shmat(memid[i], 0, 0);
-
-		//creation de la semaphore:
-		semid[i] = semget(IPC_PRIVATE, 1, IPC_CREAT|0666);
-		if (semid[i] == -1) {
-			perror("semget");
-			return 1;
-		}
-
-		//initialisation de la semaphore:
-		semctl(semid[i], 0, SETVAL, 1);
 	}
 
 	for (int i = 0; i < nbProc - 1; i++) {
-		if (fork() == 0){
-			printf("entre du fils: %d\n", i);		
+		if (fork() == 0) {
 			if (nbSegments <= nbProc)
 				computePremier(min + i * nbInts, min + (i + 1) * nbInts,
 						sizeSegment, nbInts, ptrSeg[i]);
@@ -269,12 +205,10 @@ int main(int argc, char* argv[]){
 					computePremier(starts[i] + nbSegments / nbProc * nbInts, ends[i],
 							sizeSegment, nbInts, ptrSeg[i]);
 			}
-			printf("sortie du fils: %d\n", i);		
 			exit(0);
 		}
 	}
 	if (fork() == 0){
-		printf("entre du fils: %d\n", nbProc - 1);		
 		if (nbSegments <= nbProc)
 			computePremier(min + (nbSegments - 1) * nbInts,
 					max, sizeSegment, nbInts,	ptrSeg[nbProc - 1]);
@@ -286,17 +220,13 @@ int main(int argc, char* argv[]){
 			computePremier(starts[nbProc - 1] + (nbSegments / nbProc - 1) * nbInts,
 					ends[nbProc - 1], sizeSegment, nbInts, ptrSeg[nbProc - 1]);
 		}
-		printf("sortie du fils: %d\n", nbProc - 1);		
 		exit(0);
 	}
 	
 	//pere attend tous ses fils:
 	while (wait(NULL) != -1);
-	printf("sortie du pere\n");		
 	//detachement:
-	for (int i = 0; i < nbProc; ++i) {
-		semctl(semid[i], 0, IPC_RMID, 0);
+	for (int i = 0; i < nbProc; ++i) 
 		shmctl(memid[i], IPC_RMID, NULL);
-	}
 }
 
